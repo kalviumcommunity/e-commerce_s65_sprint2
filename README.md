@@ -36,3 +36,20 @@ The documentation check uses only the Python standard library:
 ```bash
 python scripts/validate_docs.py
 ```
+
+## RAG implementation
+
+The implementation is organized around the provider-neutral pipeline in
+`rag_assistant.pipeline.RAGPipeline`. Configure `LLM_API_KEY`, `LLM_BASE_URL`,
+and `LLM_MODEL` from `.env.example`; credentials remain server-side.
+
+The pipeline embeds a question, ranks and reranks approved chunks, assembles
+source-bounded context within the model budget, generates a structured answer,
+validates citation IDs, and refuses when evidence is weak. A
+`FollowUpRewriter` can turn a conversational follow-up into a standalone
+retrieval query, while `EvidenceGate` prevents unsupported questions from
+reaching generation.
+
+Rohit (`itisrohit`) owns the LLM and RAG implementation. The work is delivered
+in five cumulative pull requests, each listing and closing its corresponding
+assigned issues.
