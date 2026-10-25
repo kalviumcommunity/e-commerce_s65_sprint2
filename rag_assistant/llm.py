@@ -56,12 +56,12 @@ class LLMClient:
                                   round((usage.prompt_tokens / 1000) * self.settings.input_cost_per_1k +
                                         (usage.completion_tokens / 1000) * self.settings.output_cost_per_1k, 8))
             return CompletionResult(text, usage, raw)
+        except urllib.error.HTTPError as exc:
+            raise LLMError(f"language model request failed with HTTP {exc.code}") from exc
         except (urllib.error.URLError, TimeoutError) as exc:
             raise LLMError("the language model request timed out or could not connect") from exc
         except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
             raise LLMError("the language model returned an invalid response") from exc
-        except urllib.error.HTTPError as exc:
-            raise LLMError(f"language model request failed with HTTP {exc.code}") from exc
 
     def _send(self, request: urllib.request.Request) -> bytes:
         with urllib.request.urlopen(request, timeout=self.settings.timeout_seconds) as response:
