@@ -35,6 +35,10 @@ class DocumentRegistry:
         self._active[document_id] = (version, chunks)
         return UploadResult(document_id, version, len(chunks), "active")
 
+    def list(self) -> list[UploadResult]:
+        return [UploadResult(document_id, version, len(chunks), "active")
+                for document_id, (version, chunks) in sorted(self._active.items())]
+
 
 class ResponseCache:
     def __init__(self, ttl_seconds: float = 60):
@@ -77,6 +81,11 @@ class RAGService:
     def upload(self, filename: str, content: str, *, document_id: str, version: str) -> dict[str, Any]:
         document = DocumentLoader().load(filename, content, document_id=document_id, version=version)
         chunks = Chunker().chunk(document)
+        records = self.pipeline.embeddings.embed([chunk.text for chunk in chunks],
+                                                  [chunk.metadata for chunk in chunks])
+        existing = list(self.pipeline.corpus)
+        self.pipeline.corpus = [record for record in existing
+                                if record.metadata.get("document_id") != document_id] + records
         result = self.registry.activate(document_id, version, chunks)
         return asdict(result)
 
@@ -94,6 +103,8 @@ def make_handler(service: RAGService) -> type[BaseHTTPRequestHandler]:
         def do_GET(self) -> None:  # noqa: N802
             if self.path == "/health":
                 self._write(200, {"status": "ok"})
+            elif self.path == "/documents":
+                self._write(200, {"documents": [asdict(item) for item in service.registry.list()]})
             elif self.path == "/favicon.ico":
                 self.send_response(204)
                 self.end_headers()
