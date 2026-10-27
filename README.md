@@ -64,9 +64,6 @@ assigned issues.
 After setting `GROQ_API_KEY` in `.env`:
 
 ```bash
-set -a
-source .env
-set +a
 python3 run_server.py
 ```
 

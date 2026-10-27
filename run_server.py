@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from rag_assistant.config import Settings
 from rag_assistant.context import ContextAssembler
 from rag_assistant.embeddings import LocalEmbeddingClient
@@ -39,6 +41,7 @@ def build_service() -> RAGService:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     port = int(os.getenv("PORT", "8000"))
     print(f"Groq policy assistant running at http://127.0.0.1:{port}")
     serve(build_service(), port=port)
