@@ -14,20 +14,29 @@ from rag_assistant.ingestion import Chunker, DocumentLoader
 from rag_assistant.llm import LLMClient
 from rag_assistant.pipeline import RAGPipeline
 from rag_assistant.retrieval import Reranker
-from rag_assistant.service import RAGService, serve
+from rag_assistant.service import DocumentRegistry, RAGService, serve
 from rag_assistant.tokens import TokenCounter
 
 
 def build_service() -> RAGService:
     settings = Settings.from_env()
     llm = LLMClient(settings)
-    sample_path = Path(__file__).parent / "data" / "sample" / "return_policy.md"
-    document = DocumentLoader().load(
-        sample_path.name, sample_path.read_text(), document_id="return-policy", version="v1"
-    )
-    chunks = Chunker(max_words=100, overlap_words=15).chunk(document)
+    sample_dir = Path(__file__).parent / "data" / "sample"
+    loader = DocumentLoader()
+    chunker = Chunker(max_words=100, overlap_words=15)
+    documents = []
+    all_chunks = []
+    for sample_path in sorted(sample_dir.iterdir()):
+        if sample_path.suffix.lower() not in DocumentLoader.SUPPORTED:
+            continue
+        document_id = sample_path.stem.replace("_", "-")
+        document = loader.load(sample_path.name, sample_path.read_text(),
+                               document_id=document_id, version="v1")
+        chunks = chunker.chunk(document)
+        documents.append((document_id, chunks))
+        all_chunks.extend(chunks)
     embedder = LocalEmbeddingClient()
-    corpus = embedder.embed([chunk.text for chunk in chunks], [chunk.metadata for chunk in chunks])
+    corpus = embedder.embed([chunk.text for chunk in all_chunks], [chunk.metadata for chunk in all_chunks])
     pipeline = RAGPipeline(
         embeddings=embedder,
         corpus=corpus,
@@ -37,7 +46,10 @@ def build_service() -> RAGService:
         evidence_gate=EvidenceGate(minimum_score=0.15),
         follow_up_rewriter=FollowUpRewriter(llm),
     )
-    return RAGService(pipeline)
+    registry = DocumentRegistry()
+    for document_id, chunks in documents:
+        registry.activate(document_id, "v1", chunks)
+    return RAGService(pipeline, registry=registry)
 
 
 if __name__ == "__main__":
