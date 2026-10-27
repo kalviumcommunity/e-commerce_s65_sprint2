@@ -27,7 +27,7 @@ class RAGPipeline:
         retrieval_question = self.follow_up_rewriter.rewrite(question, history or []) if self.follow_up_rewriter else question
         query = self.embeddings.embed([retrieval_question])[0].vector
         candidates = rank_by_similarity(query, self.corpus, self.top_k)
-        reranked = self.reranker.rerank(question, candidates, top_k=self.top_k)
+        reranked = self.reranker.rerank(retrieval_question, candidates, top_k=self.top_k)
         if self.evidence_gate:
             decision = self.evidence_gate.assess(reranked)
             if not decision.allowed:
