@@ -58,3 +58,19 @@ reaching generation.
 Rohit (`itisrohit`) owns the LLM and RAG implementation. The work is delivered
 in five cumulative pull requests, each listing and closing its corresponding
 assigned issues.
+
+## Run the local Groq app
+
+After setting `GROQ_API_KEY` in `.env`:
+
+```bash
+set -a
+source .env
+set +a
+python3 run_server.py
+```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The sample policy is in
+`data/sample/return_policy.md`; the browser UI and API are served from the same
+process. Embeddings are computed locally with a lightweight lexical vector so
+the only network model call is Groq generation.

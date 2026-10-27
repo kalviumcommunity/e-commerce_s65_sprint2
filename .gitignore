@@ -4,8 +4,10 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+*.egg-info/
 
 # Local configuration and secrets
+.env
 !.env.example
 
 # Editors and operating systems

@@ -47,7 +47,8 @@ class FollowUpRewriter:
                      "Return JSON exactly as {\"query\": \"...\"}. Do not answer the question."}]
         messages.extend(history[-8:])
         messages.append({"role": "user", "content": question})
-        result = self.client.complete(messages, temperature=0, max_tokens=128)
+        result = self.client.complete(messages, temperature=0.1, max_tokens=128,
+                                      response_format={"type": "json_object"})
         try:
             query = str(json.loads(result.text)["query"]).strip()
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
