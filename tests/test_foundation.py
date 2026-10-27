@@ -1,5 +1,6 @@
 import json
 import os
+import urllib.error
 import unittest
 from unittest.mock import patch
 
@@ -41,6 +42,18 @@ class FoundationTests(unittest.TestCase):
         settings = Settings("secret", "https://provider.test/v1", "model")
         with self.assertRaises(LLMError):
             LLMClient(settings, transport=lambda *_: b"{}") .complete([{"role": "user", "content": "q"}])
+
+    def test_transient_connection_error_is_retried(self):
+        settings = Settings("secret", "https://provider.test/v1", "model")
+        attempts = []
+        def transport(*_):
+            attempts.append(1)
+            if len(attempts) < 2:
+                raise urllib.error.URLError("temporary failure")
+            return json.dumps({"choices": [{"message": {"content": "ok"}}]}).encode()
+        result = LLMClient(settings, transport=transport).complete([{"role": "user", "content": "q"}])
+        self.assertEqual(result.text, "ok")
+        self.assertEqual(len(attempts), 2)
 
 
 if __name__ == "__main__":
