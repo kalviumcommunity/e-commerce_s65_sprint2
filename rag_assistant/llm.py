@@ -44,6 +44,10 @@ class LLMClient:
             payload["stop"] = list(stop)
         if response_format:
             payload["response_format"] = dict(response_format)
+            # Groq GPT-OSS requires reasoning output to be hidden or parsed
+            # when JSON mode is enabled; hidden keeps the public contract clean.
+            payload["reasoning_format"] = "hidden"
+            payload["reasoning_effort"] = "low"
         request = urllib.request.Request(
             f"{self.settings.base_url}/chat/completions",
             data=json.dumps(payload).encode(),
