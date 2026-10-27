@@ -11,8 +11,14 @@ from rag_assistant.tokens import TokenCounter
 class FoundationTests(unittest.TestCase):
     def test_missing_configuration_is_helpful(self):
         with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaisesRegex(ConfigurationError, "LLM_API_KEY"):
+            with self.assertRaisesRegex(ConfigurationError, "GROQ_API_KEY"):
                 Settings.from_env()
+
+    def test_groq_configuration_is_fixed_to_groq_endpoint(self):
+        with patch.dict(os.environ, {"GROQ_API_KEY": "secret", "GROQ_MODEL": "openai/gpt-oss-20b"}, clear=True):
+            settings = Settings.from_env()
+        self.assertEqual(settings.base_url, "https://api.groq.com/openai/v1")
+        self.assertEqual(settings.model, "openai/gpt-oss-20b")
 
     def test_token_estimate_and_budget(self):
         counter = TokenCounter(1, 2)

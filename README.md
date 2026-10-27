@@ -39,9 +39,14 @@ python scripts/validate_docs.py
 
 ## RAG implementation
 
-The implementation is organized around the provider-neutral pipeline in
-`rag_assistant.pipeline.RAGPipeline`. Configure `LLM_API_KEY`, `LLM_BASE_URL`,
-and `LLM_MODEL` from `.env.example`; credentials remain server-side.
+The implementation uses Groq exclusively for remote generation through the
+provider-neutral pipeline in `rag_assistant.pipeline.RAGPipeline`. Configure
+`GROQ_API_KEY` and `GROQ_MODEL` from `.env.example`; credentials remain
+server-side. The default model is `openai/gpt-oss-20b`.
+
+Groq does not currently expose a documented embeddings endpoint in the API
+used here, so retrieval embeddings remain local and deterministic. No second
+remote model provider is called.
 
 The pipeline embeds a question, ranks and reranks approved chunks, assembles
 source-bounded context within the model budget, generates a structured answer,

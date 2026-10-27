@@ -5,6 +5,10 @@ browser UI calls only these application endpoints; provider credentials remain
 server-side. Query responses contain a request ID, status, answer, and
 validated citations.
 
+Remote generation uses Groq only. Set `GROQ_API_KEY` and optionally
+`GROQ_MODEL`; the default is `openai/gpt-oss-20b`. Embeddings are local so the
+service does not depend on an undocumented third-party embeddings provider.
+
 Run the automated checks with:
 
 ```bash
