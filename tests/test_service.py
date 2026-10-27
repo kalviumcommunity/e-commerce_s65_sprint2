@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import Mock
 
 from rag_assistant.generation import GroundedAnswer
+from rag_assistant.embeddings import LocalEmbeddingClient
 from rag_assistant.service import DocumentRegistry, RAGService, ResponseCache
 
 
@@ -19,9 +20,13 @@ class ServiceTests(unittest.TestCase):
 
     def test_upload_rejects_empty_activation(self):
         pipeline = Mock()
+        pipeline.embeddings = LocalEmbeddingClient(32)
+        pipeline.corpus = []
         service = RAGService(pipeline, registry=DocumentRegistry())
         result = service.upload("policy.txt", "return in 30 days", document_id="returns", version="v1")
         self.assertEqual(result["status"], "active")
+        self.assertEqual(len(pipeline.corpus), 1)
+        self.assertEqual(pipeline.corpus[0].metadata["document_id"], "returns")
 
 
 if __name__ == "__main__":
