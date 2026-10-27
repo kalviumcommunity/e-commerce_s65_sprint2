@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from rag_assistant.config import Settings
@@ -38,6 +39,7 @@ def build_service() -> RAGService:
 
 
 if __name__ == "__main__":
-    print("Groq policy assistant running at http://127.0.0.1:8000")
-    serve(build_service())
+    port = int(os.getenv("PORT", "8000"))
+    print(f"Groq policy assistant running at http://127.0.0.1:{port}")
+    serve(build_service(), port=port)
 
