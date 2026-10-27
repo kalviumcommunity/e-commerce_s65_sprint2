@@ -46,16 +46,16 @@ class Settings:
 
     @classmethod
     def from_env(cls, *, require_api_key: bool = True) -> "Settings":
-        api_key = os.getenv("LLM_API_KEY", "").strip()
+        api_key = os.getenv("GROQ_API_KEY", "").strip()
         if require_api_key and (not api_key or api_key == "replace-me"):
-            raise ConfigurationError("LLM_API_KEY is missing; set it in the environment")
-        base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-        model = os.getenv("LLM_MODEL", "").strip()
+            raise ConfigurationError("GROQ_API_KEY is missing; set it in the environment")
+        base_url = "https://api.groq.com/openai/v1"
+        model = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip()
         if not model:
-            raise ConfigurationError("LLM_MODEL is missing; set the provider model name")
-        timeout = _float("LLM_TIMEOUT_SECONDS", 30.0)
+            raise ConfigurationError("GROQ_MODEL is missing; set a supported Groq model")
+        timeout = _float("GROQ_TIMEOUT_SECONDS", 30.0)
         if timeout <= 0:
-            raise ConfigurationError("LLM_TIMEOUT_SECONDS must be greater than zero")
-        return cls(api_key, base_url, model, timeout, _float("LLM_INPUT_COST_PER_1K", 0),
-                   _float("LLM_OUTPUT_COST_PER_1K", 0), _int("LLM_CONTEXT_WINDOW", 8192))
+            raise ConfigurationError("GROQ_TIMEOUT_SECONDS must be greater than zero")
+        return cls(api_key, base_url, model, timeout, _float("GROQ_INPUT_COST_PER_1K", 0),
+                   _float("GROQ_OUTPUT_COST_PER_1K", 0), _int("GROQ_CONTEXT_WINDOW", 131072))
 
