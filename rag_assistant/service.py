@@ -6,10 +6,12 @@ import time
 import uuid
 from dataclasses import asdict, dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any, Callable
 
 from .generation import GroundedAnswer
 from .ingestion import Chunk, Chunker, DocumentLoader
+from .llm import LLMError
 from .pipeline import RAGPipeline
 
 logger = logging.getLogger("rag_assistant")
@@ -92,6 +94,13 @@ def make_handler(service: RAGService) -> type[BaseHTTPRequestHandler]:
         def do_GET(self) -> None:  # noqa: N802
             if self.path == "/health":
                 self._write(200, {"status": "ok"})
+            elif self.path in {"/", "/index.html"}:
+                page = (Path(__file__).parent.parent / "web" / "index.html").read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(page)))
+                self.end_headers()
+                self.wfile.write(page)
             else:
                 self._write(404, {"error": "not found"})
 
@@ -106,6 +115,8 @@ def make_handler(service: RAGService) -> type[BaseHTTPRequestHandler]:
                                                     document_id=payload["document_id"], version=payload["version"]))
                 else:
                     self._write(404, {"error": "not found"})
+            except LLMError as exc:
+                self._write(502, {"error": str(exc)})
             except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 self._write(400, {"error": str(exc)})
 

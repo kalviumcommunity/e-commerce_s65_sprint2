@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import ssl
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -28,7 +29,8 @@ class LLMClient:
         self._transport = transport
 
     def complete(self, messages: Sequence[Mapping[str, str]], *, temperature: float = 0.0,
-                 max_tokens: int = 512, stop: Sequence[str] | None = None) -> CompletionResult:
+                 max_tokens: int = 512, stop: Sequence[str] | None = None,
+                 response_format: Mapping[str, Any] | None = None) -> CompletionResult:
         if not messages:
             raise ValueError("at least one message is required")
         if not 0 <= temperature <= 2:
@@ -39,11 +41,14 @@ class LLMClient:
                                    "temperature": temperature, "max_tokens": max_tokens}
         if stop:
             payload["stop"] = list(stop)
+        if response_format:
+            payload["response_format"] = dict(response_format)
         request = urllib.request.Request(
             f"{self.settings.base_url}/chat/completions",
             data=json.dumps(payload).encode(),
             headers={"Authorization": f"Bearer {self.settings.api_key}",
-                     "Content-Type": "application/json"}, method="POST")
+                     "Content-Type": "application/json",
+                     "User-Agent": "ecommerce-policy-assistant/0.1"}, method="POST")
         try:
             raw_bytes = self._transport(request, self.settings.timeout_seconds) if self._transport else self._send(request)
             raw = json.loads(raw_bytes.decode() if isinstance(raw_bytes, bytes) else raw_bytes)
@@ -64,6 +69,11 @@ class LLMClient:
             raise LLMError("the language model returned an invalid response") from exc
 
     def _send(self, request: urllib.request.Request) -> bytes:
-        with urllib.request.urlopen(request, timeout=self.settings.timeout_seconds) as response:
+        try:
+            import certifi
+            context = ssl.create_default_context(cafile=certifi.where())
+        except ImportError:
+            context = ssl.create_default_context()
+        with urllib.request.urlopen(request, timeout=self.settings.timeout_seconds, context=context) as response:
             return response.read()
 

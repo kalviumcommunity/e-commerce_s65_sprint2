@@ -40,7 +40,8 @@ class GroundedGenerator:
         )
         user = f"Question: {question}\n\nEvidence:\n{context.text}"
         result = self.client.complete([{"role": "system", "content": system}, {"role": "user", "content": user}],
-                                      temperature=0, max_tokens=512)
+                                      temperature=0.1, max_tokens=512,
+                                      response_format={"type": "json_object"})
         return self._parse(result, context)
 
     def _parse(self, result: CompletionResult, context: Context) -> GroundedAnswer:
@@ -48,6 +49,8 @@ class GroundedGenerator:
             payload: Mapping[str, Any] = json.loads(result.text)
             answer = str(payload["answer"]).strip()
             status = str(payload.get("status", "answered"))
+            if status in {"success", "ok"}:
+                status = "answered"
             ids = payload.get("citations", [])
             if not answer or status not in {"answered", "needs_clarification", "insufficient_evidence"}:
                 raise ValueError
