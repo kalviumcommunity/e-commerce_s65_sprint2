@@ -67,7 +67,9 @@ After setting `GROQ_API_KEY` in `.env`:
 python3 run_server.py
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). The sample policy is in
-`data/sample/return_policy.md`; the browser UI and API are served from the same
-process. Embeddings are computed locally with a lightweight lexical vector so
-the only network model call is Groq generation.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Demo documents are in
+`data/sample/` and include a return policy, product catalog, shipping policy,
+seller agreement, warranty policy, and refund policy. Choose any of them from
+the upload panel. The browser UI and API are served from the same process.
+Embeddings are computed locally with a lightweight lexical vector so the only
+network model call is Groq generation.
