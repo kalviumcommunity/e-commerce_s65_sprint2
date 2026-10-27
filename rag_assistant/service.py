@@ -94,6 +94,9 @@ def make_handler(service: RAGService) -> type[BaseHTTPRequestHandler]:
         def do_GET(self) -> None:  # noqa: N802
             if self.path == "/health":
                 self._write(200, {"status": "ok"})
+            elif self.path == "/favicon.ico":
+                self.send_response(204)
+                self.end_headers()
             elif self.path in {"/", "/index.html"}:
                 page = (Path(__file__).parent.parent / "web" / "index.html").read_bytes()
                 self.send_response(200)
