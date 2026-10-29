@@ -14,7 +14,7 @@ from .guardrails import EvidenceGate, FollowUpRewriter
 class RAGPipeline:
     """Orchestrate the complete online Retrieval-Augmented Generation flow.
 
-    Data flow for an interview walkthrough:
+    End-to-end data flow:
     question/history -> standalone retrieval query -> local embedding ->
     similarity ranking -> lexical reranking -> evidence gate -> token-bounded
     context -> Groq JSON answer -> validated citations.
@@ -39,10 +39,9 @@ class RAGPipeline:
     def answer(self, question: str, history: Sequence[dict[str, str]] | None = None) -> GroundedAnswer:
         """Answer one question using retrieved evidence instead of model memory.
 
-        Interview explanation: this method is the heart of RAG. It converts the
-        question into a search vector, finds and reranks policy passages, checks
-        that the evidence is strong enough, then asks the LLM to answer only
-        from that evidence.
+        This method is the heart of RAG: it converts the question into a search
+        vector, finds and reranks policy passages, checks that the evidence is
+        strong enough, then asks the LLM to answer only from that evidence.
         """
         if not question.strip():
             raise ValueError("question cannot be empty")
