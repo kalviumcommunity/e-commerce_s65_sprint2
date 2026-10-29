@@ -1,3 +1,5 @@
+"""Validate source documents, normalize text, chunk it, and store vectors."""
+
 from __future__ import annotations
 
 import csv
@@ -13,11 +15,12 @@ from .retrieval import RetrievedChunk, cosine_similarity
 
 
 class IngestionError(ValueError):
-    pass
+    """Raised when an uploaded knowledge source is unsafe or unreadable."""
 
 
 @dataclass(frozen=True)
 class Document:
+    """A normalized, versioned source document before chunking."""
     document_id: str
     version: str
     source: str
@@ -27,21 +30,26 @@ class Document:
 
 @dataclass(frozen=True)
 class Chunk:
+    """A traceable passage that can be embedded, retrieved, and cited."""
     chunk_id: str
     text: str
     metadata: Mapping[str, Any]
 
 
 class DocumentLoader:
+    """Convert approved text formats into one normalized document contract."""
+
     SUPPORTED = {".txt", ".md", ".json", ".csv"}
 
     def load(self, name: str, content: str, *, document_id: str, version: str,
              metadata: Mapping[str, Any] | None = None) -> Document:
+        """Validate format/content and attach provenance plus a checksum."""
         extension = "." + name.rsplit(".", 1)[-1].lower() if "." in name else ".txt"
         if extension not in self.SUPPORTED:
             raise IngestionError(f"unsupported document format: {extension}")
         if not content.strip():
             raise IngestionError("document content is empty")
+        # Structured formats are converted into readable text before chunking.
         if extension == ".json":
             try:
                 value = json.loads(content)
@@ -52,6 +60,7 @@ class DocumentLoader:
             rows = list(csv.reader(io.StringIO(content)))
             content = "\n".join(" | ".join(cell.strip() for cell in row) for row in rows)
         normalized = re.sub(r"[ \t]+", " ", content.replace("\r\n", "\n")).strip()
+        # The checksum supports duplicate detection and document version audits.
         checksum = hashlib.sha256(normalized.encode()).hexdigest()
         all_metadata = {"source": name, "checksum": checksum, "document_id": document_id,
                         "version": version, **(metadata or {})}
@@ -59,6 +68,8 @@ class DocumentLoader:
 
 
 class Chunker:
+    """Split a document into overlapping passages with stable source IDs."""
+
     def __init__(self, max_words: int = 120, overlap_words: int = 20):
         if max_words <= 0 or overlap_words < 0 or overlap_words >= max_words:
             raise ValueError("overlap must be non-negative and smaller than max_words")
@@ -66,6 +77,7 @@ class Chunker:
         self.overlap_words = overlap_words
 
     def chunk(self, document: Document) -> list[Chunk]:
+        """Create bounded chunks while retaining context across boundaries."""
         words = document.text.split()
         result: list[Chunk] = []
         start = 0
@@ -79,16 +91,20 @@ class Chunker:
             result.append(Chunk(chunk_id, text, metadata))
             if end == len(words):
                 break
+            # Overlap prevents a fact split at a boundary from losing context.
             start = end - self.overlap_words
             index += 1
         return result
 
 
 class InMemoryVectorStore:
+    """Small demo vector index with metadata filtering and hybrid search."""
+
     def __init__(self):
         self._records: dict[str, EmbeddingRecord] = {}
 
     def upsert(self, records: Iterable[EmbeddingRecord]) -> None:
+        """Insert or replace records by stable chunk ID (idempotent indexing)."""
         for record in records:
             chunk_id = str(record.metadata.get("chunk_id", record.text))
             self._records[chunk_id] = record
@@ -98,16 +114,20 @@ class InMemoryVectorStore:
 
     def search(self, query_vector: Sequence[float], *, top_k: int = 5,
                document_id: str | None = None) -> list[RetrievedChunk]:
+        """Return the closest vectors, optionally scoped to one document."""
         candidates = [record for record in self._records.values()
                       if document_id is None or record.metadata.get("document_id") == document_id]
         ranked = [RetrievedChunk(record, cosine_similarity(query_vector, record.vector)) for record in candidates]
         return sorted(ranked, key=lambda item: item.score, reverse=True)[:top_k]
 
     def hybrid_search(self, query: str, query_vector: Sequence[float], *, top_k: int = 5) -> list[RetrievedChunk]:
+        """Blend vector similarity with exact term overlap for policy names."""
         terms = set(query.lower().split())
         scored = []
         for record in self._records.values():
             lexical = len(terms & set(record.text.lower().split())) / max(1, len(terms))
+            # Semantic similarity handles paraphrases; lexical overlap helps
+            # exact product names, numbers, and policy terms.
             score = .7 * cosine_similarity(query_vector, record.vector) + .3 * lexical
             scored.append(RetrievedChunk(record, score))
         return sorted(scored, key=lambda item: item.score, reverse=True)[:top_k]

@@ -1,3 +1,5 @@
+"""Minimal Groq chat-completion client with validation, retries, and usage."""
+
 from __future__ import annotations
 
 import json
@@ -18,12 +20,15 @@ class LLMError(RuntimeError):
 
 @dataclass(frozen=True)
 class CompletionResult:
+    """Normalized provider response consumed by the rest of the application."""
     text: str
     usage: UsageEstimate
     raw: Mapping[str, Any] | None = None
 
 
 class LLMClient:
+    """Keep Groq HTTP details behind one small, testable interface."""
+
     def __init__(self, settings: Settings, *, transport: Callable[..., bytes] | None = None):
         self.settings = settings
         self.counter = TokenCounter(settings.input_cost_per_1k, settings.output_cost_per_1k)
@@ -32,6 +37,7 @@ class LLMClient:
     def complete(self, messages: Sequence[Mapping[str, str]], *, temperature: float = 0.0,
                  max_tokens: int = 512, stop: Sequence[str] | None = None,
                  response_format: Mapping[str, Any] | None = None) -> CompletionResult:
+        """Validate a request, call Groq, retry transient errors, and count use."""
         if not messages:
             raise ValueError("at least one message is required")
         if not 0 <= temperature <= 2:
@@ -48,12 +54,16 @@ class LLMClient:
             # when JSON mode is enabled; hidden keeps the public contract clean.
             payload["reasoning_format"] = "hidden"
             payload["reasoning_effort"] = "low"
+        # The API key is attached only to the server-to-Groq request. It is
+        # never returned to the browser or included in application logs.
         request = urllib.request.Request(
             f"{self.settings.base_url}/chat/completions",
             data=json.dumps(payload).encode(),
             headers={"Authorization": f"Bearer {self.settings.api_key}",
                      "Content-Type": "application/json",
                      "User-Agent": "ecommerce-policy-assistant/0.1"}, method="POST")
+        # Retry only connection problems and status codes that are usually
+        # temporary; malformed requests fail immediately.
         for attempt in range(3):
             try:
                 raw_bytes = self._transport(request, self.settings.timeout_seconds) if self._transport else self._send(request)
@@ -81,6 +91,7 @@ class LLMClient:
                 raise LLMError("the language model returned an invalid response") from exc
 
     def _send(self, request: urllib.request.Request) -> bytes:
+        """Send HTTPS using the trusted CA bundle available in this runtime."""
         try:
             import certifi
             context = ssl.create_default_context(cafile=certifi.where())

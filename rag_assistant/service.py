@@ -56,6 +56,8 @@ class ResponseCache:
 
 
 class RAGService:
+    """Application layer connecting browser/API requests to the RAG pipeline."""
+
     def __init__(self, pipeline: RAGPipeline, *, registry: DocumentRegistry | None = None,
                  cache: ResponseCache | None = None):
         self.pipeline = pipeline
@@ -63,6 +65,7 @@ class RAGService:
         self.cache = cache or ResponseCache()
 
     def query(self, question: str, history: list[dict[str, str]] | None = None) -> dict[str, Any]:
+        # Reuse recent identical answers to reduce Groq calls and response time.
         key = json.dumps({"q": question, "h": history or []}, sort_keys=True)
         cached = self.cache.get(key)
         if cached:
@@ -70,6 +73,8 @@ class RAGService:
             return cached
         request_id = str(uuid.uuid4())
         started = time.perf_counter()
+
+        # Run the technical RAG pipeline and convert its result into UI-ready JSON.
         answer = self.pipeline.answer(question, history)
         response = {"request_id": request_id, "answer": answer.answer, "status": answer.status,
                     "citations": [asdict(citation) for citation in answer.citations],
@@ -79,6 +84,7 @@ class RAGService:
         return response
 
     def upload(self, filename: str, content: str, *, document_id: str, version: str) -> dict[str, Any]:
+        # Uploaded text follows the same load -> chunk -> embed -> activate flow.
         document = DocumentLoader().load(filename, content, document_id=document_id, version=version)
         chunks = Chunker().chunk(document)
         records = self.pipeline.embeddings.embed([chunk.text for chunk in chunks],
@@ -101,6 +107,7 @@ def make_handler(service: RAGService) -> type[BaseHTTPRequestHandler]:
             self.wfile.write(body)
 
         def do_GET(self) -> None:  # noqa: N802
+            # Browser-facing read endpoints: health, active sources, and the UI.
             if self.path == "/health":
                 self._write(200, {"status": "ok"})
             elif self.path == "/documents":
@@ -123,8 +130,10 @@ def make_handler(service: RAGService) -> type[BaseHTTPRequestHandler]:
                 length = int(self.headers.get("Content-Length", "0"))
                 payload = json.loads(self.rfile.read(length))
                 if self.path == "/query":
+                    # UI question -> RAG pipeline -> grounded answer with citations.
                     self._write(200, service.query(str(payload["question"]), payload.get("history")))
                 elif self.path == "/documents":
+                    # UI upload -> validated document -> searchable knowledge base.
                     self._write(201, service.upload(payload["filename"], payload["content"],
                                                     document_id=payload["document_id"], version=payload["version"]))
                 else:

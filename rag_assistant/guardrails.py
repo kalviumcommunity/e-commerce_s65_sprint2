@@ -1,3 +1,5 @@
+"""Prevent unsupported answers and make follow-up questions retrievable."""
+
 from __future__ import annotations
 
 import json
@@ -11,16 +13,20 @@ from .retrieval import RetrievedChunk
 
 @dataclass(frozen=True)
 class EvidenceDecision:
+    """Records whether retrieved context is safe enough for generation."""
     allowed: bool
     reason: str
 
 
 class EvidenceGate:
+    """Block the LLM when retrieval quantity or relevance is too weak."""
+
     def __init__(self, *, minimum_score: float = 0.25, minimum_chunks: int = 1):
         self.minimum_score = minimum_score
         self.minimum_chunks = minimum_chunks
 
     def assess(self, candidates: Sequence[RetrievedChunk]) -> EvidenceDecision:
+        """Apply deterministic minimum-count and minimum-score requirements."""
         if len(candidates) < self.minimum_chunks:
             return EvidenceDecision(False, "no supporting evidence was retrieved")
         if max(chunk.score for chunk in candidates) < self.minimum_score:
@@ -28,6 +34,7 @@ class EvidenceGate:
         return EvidenceDecision(True, "evidence threshold satisfied")
 
     def refusal(self, reason: str) -> GroundedAnswer:
+        """Return a safe response instead of allowing the model to guess."""
         return GroundedAnswer("I don’t have enough approved evidence to answer that safely. "
                               "Please rephrase the question or provide the relevant policy.",
                               "insufficient_evidence", ())
@@ -40,11 +47,13 @@ class FollowUpRewriter:
         self.client = client
 
     def rewrite(self, question: str, history: Sequence[dict[str, str]]) -> str:
+        """Resolve references such as 'it' using recent conversation history."""
         if not history:
             return question
         messages = [{"role": "system", "content":
                      "Rewrite the latest user question as a standalone search query using only conversation context. "
                      "Return JSON exactly as {\"query\": \"...\"}. Do not answer the question."}]
+        # Limit history to recent turns so rewriting stays focused and bounded.
         messages.extend(history[-8:])
         messages.append({"role": "user", "content": question})
         result = self.client.complete(messages, temperature=0.1, max_tokens=128,
