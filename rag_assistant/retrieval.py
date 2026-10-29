@@ -1,3 +1,5 @@
+"""Rank embedded policy chunks and improve precision with reranking."""
+
 from __future__ import annotations
 
 import math
@@ -10,6 +12,7 @@ from .tokens import TokenCounter
 
 
 def cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
+    """Measure vector direction similarity on the conventional -1..1 scale."""
     if len(left) != len(right) or not left:
         raise ValueError("vectors must be non-empty and have equal dimensions")
     denominator = math.sqrt(sum(x * x for x in left)) * math.sqrt(sum(y * y for y in right))
@@ -18,11 +21,13 @@ def cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
 
 @dataclass(frozen=True)
 class RetrievedChunk:
+    """A source record paired with its current retrieval/reranking score."""
     record: EmbeddingRecord
     score: float
 
 
 def rank_by_similarity(query: Sequence[float], records: Sequence[EmbeddingRecord], top_k: int = 5) -> list[RetrievedChunk]:
+    """Select the top-k corpus passages most similar to the query vector."""
     if top_k <= 0:
         raise ValueError("top_k must be greater than zero")
     ranked = [RetrievedChunk(record, cosine_similarity(query, record.vector)) for record in records]
@@ -31,6 +36,7 @@ def rank_by_similarity(query: Sequence[float], records: Sequence[EmbeddingRecord
 
 @dataclass(frozen=True)
 class EmbeddingUsage:
+    """Operational counters for a batch embedding run."""
     attempted: int
     embedded: int
     skipped_duplicates: int
@@ -50,6 +56,7 @@ class BatchEmbeddingRunner:
         self.usage = EmbeddingUsage(0, 0, 0, 0, 0)
 
     def run(self, texts: Sequence[str], metadata: Sequence[Mapping] | None = None) -> list[EmbeddingRecord]:
+        """Embed new texts, skip completed work, and retry transient failures."""
         if metadata is None:
             metadata = [{} for _ in texts]
         if len(metadata) != len(texts):
@@ -68,6 +75,7 @@ class BatchEmbeddingRunner:
         retries = 0
         new_records: list[EmbeddingRecord] = []
         if unique:
+            # Exponential backoff prevents immediate repeated provider pressure.
             for attempt in range(self.max_retries + 1):
                 try:
                     new_records = self.client.embed(unique, unique_meta)
@@ -86,6 +94,8 @@ class BatchEmbeddingRunner:
 
 
 class Reranker:
+    """Reorder a retrieved candidate set using a precision-oriented scorer."""
+
     def __init__(self, scorer: Callable[[str, str], float] | None = None):
         self.scorer = scorer or self._lexical_score
 
@@ -96,6 +106,7 @@ class Reranker:
         return len(query_words & text_words) / max(1, len(query_words))
 
     def rerank(self, query: str, candidates: Sequence[RetrievedChunk], *, top_k: int = 5) -> list[RetrievedChunk]:
+        """Score only retrieved candidates and keep the strongest passages."""
         rescored = [RetrievedChunk(item.record, self.scorer(query, item.record.text)) for item in candidates]
         return sorted(rescored, key=lambda item: item.score, reverse=True)[:top_k]
 

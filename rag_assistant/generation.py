@@ -1,3 +1,5 @@
+"""Generate structured answers and validate every model-provided citation."""
+
 from __future__ import annotations
 
 import json
@@ -10,6 +12,7 @@ from .llm import CompletionResult, LLMClient
 
 @dataclass(frozen=True)
 class Citation:
+    """Verifiable evidence shown beside an answer in the UI."""
     chunk_id: str
     document: str
     location: str
@@ -19,6 +22,7 @@ class Citation:
 
 @dataclass(frozen=True)
 class GroundedAnswer:
+    """Stable response contract returned by the RAG pipeline and API."""
     answer: str
     status: str
     citations: tuple[Citation, ...]
@@ -26,12 +30,16 @@ class GroundedAnswer:
 
 
 class GroundedGenerator:
+    """Ask the LLM to answer only from retrieved, source-labelled evidence."""
+
     def __init__(self, client: LLMClient):
         self.client = client
 
     def generate(self, question: str, context: Context) -> GroundedAnswer:
+        """Create a low-temperature JSON answer or refuse when context is empty."""
         if not context.chunks:
             return GroundedAnswer("I don’t have enough approved evidence to answer that.", "insufficient_evidence", ())
+        # This system instruction is the final generation-level grounding rule.
         system = (
             "Answer only from the supplied evidence. Do not use model memory. "
             "Return JSON with keys answer, status, and citations. citations must be an array "
@@ -45,6 +53,7 @@ class GroundedGenerator:
         return self._parse(result, context)
 
     def _parse(self, result: CompletionResult, context: Context) -> GroundedAnswer:
+        """Validate JSON shape, status values, and citation provenance."""
         try:
             payload: Mapping[str, Any] = json.loads(result.text)
             answer = str(payload["answer"]).strip()
@@ -58,6 +67,8 @@ class GroundedGenerator:
                 raise ValueError
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
             raise ValueError("model returned an invalid grounded-answer contract") from exc
+        # Only IDs present in the supplied context are valid. This prevents the
+        # model from inventing a plausible-looking document citation.
         by_id = {str(c.record.metadata.get("chunk_id")): c for c in context.chunks}
         citations: list[Citation] = []
         for chunk_id in ids:

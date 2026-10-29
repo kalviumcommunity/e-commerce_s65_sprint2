@@ -1,3 +1,5 @@
+"""Estimate token usage, cost, and safe text budgets without extra packages."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -5,6 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class UsageEstimate:
+    """Token and cost information recorded for one model interaction."""
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
@@ -30,6 +33,7 @@ class TokenCounter:
         return max(1, (len(text) + 3) // 4)
 
     def estimate(self, prompt: str, completion: str = "") -> UsageEstimate:
+        """Estimate prompt/completion tokens and configured provider cost."""
         prompt_tokens = self.count(prompt)
         completion_tokens = self.count(completion) if completion else 0
         cost = (prompt_tokens / 1000) * self.input_cost_per_1k
@@ -38,6 +42,7 @@ class TokenCounter:
                              prompt_tokens + completion_tokens, round(cost, 8))
 
     def trim_to_budget(self, text: str, budget: int) -> str:
+        """Return text that approximately fits a maximum token allowance."""
         if budget <= 0:
             return ""
         if self.count(text) <= budget:

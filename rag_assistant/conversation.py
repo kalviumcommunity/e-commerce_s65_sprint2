@@ -1,3 +1,5 @@
+"""Maintain bounded multi-turn chat history for conversational RAG."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,6 +9,7 @@ from .tokens import TokenCounter
 
 @dataclass(frozen=True)
 class Message:
+    """One validated system, user, or assistant chat message."""
     role: str
     content: str
 
@@ -21,6 +24,7 @@ class Conversation:
     messages: list[Message] = field(default_factory=list)
 
     def add(self, role: str, content: str) -> None:
+        """Append a non-empty message with an API-supported role."""
         if role not in {"system", "user", "assistant"}:
             raise ValueError("role must be system, user, or assistant")
         if not content.strip():
@@ -28,11 +32,13 @@ class Conversation:
         self.messages.append(Message(role, content.strip()))
 
     def prompt_messages(self, system_prompt: str | None = None) -> list[dict[str, str]]:
+        """Return the newest messages that fit beside reserved model output."""
         budget = max(1, self.context_window - self.reserved_output_tokens)
         selected: list[Message] = []
         used = self.token_counter.count(system_prompt or "")
         if system_prompt:
             selected.append(Message("system", system_prompt))
+        # Walk backwards so recent turns survive when old history must be cut.
         for message in reversed(self.messages):
             cost = self.token_counter.count(message.content)
             if selected and used + cost > budget:

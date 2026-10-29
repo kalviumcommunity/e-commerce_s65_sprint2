@@ -1,3 +1,5 @@
+"""Read and validate the runtime settings used by the Groq integration."""
+
 from __future__ import annotations
 
 import os
@@ -9,6 +11,7 @@ class ConfigurationError(ValueError):
 
 
 def _float(name: str, default: float) -> float:
+    """Read a non-negative floating-point environment variable."""
     raw = os.getenv(name)
     if raw is None or raw == "":
         return default
@@ -22,6 +25,7 @@ def _float(name: str, default: float) -> float:
 
 
 def _int(name: str, default: int) -> int:
+    """Read a strictly positive integer environment variable."""
     raw = os.getenv(name)
     if raw is None or raw == "":
         return default
@@ -36,6 +40,7 @@ def _int(name: str, default: int) -> int:
 
 @dataclass(frozen=True)
 class Settings:
+    """Immutable configuration shared by model and token-budget components."""
     api_key: str
     base_url: str
     model: str
@@ -46,6 +51,9 @@ class Settings:
 
     @classmethod
     def from_env(cls, *, require_api_key: bool = True) -> "Settings":
+        """Build settings without ever hard-coding or logging the secret key."""
+        # Only the secret and safe tuning values are configurable. The base URL
+        # remains fixed so an environment variable cannot redirect credentials.
         api_key = os.getenv("GROQ_API_KEY", "").strip()
         if require_api_key and (not api_key or api_key == "replace-me"):
             raise ConfigurationError("GROQ_API_KEY is missing; set it in the environment")

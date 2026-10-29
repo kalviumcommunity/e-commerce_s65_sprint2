@@ -1,3 +1,5 @@
+"""Reusable, versioned prompt templates and structured-output validation."""
+
 from __future__ import annotations
 
 import json
@@ -7,11 +9,13 @@ from typing import Any, Mapping, Sequence
 
 @dataclass(frozen=True)
 class PromptTemplate:
+    """Separate prompt wording and versioning from application logic."""
     name: str
     system: str
     version: str = "v1"
 
     def render(self, **values: str) -> str:
+        """Fill named placeholders such as context and question."""
         return self.system.format(**values)
 
 
@@ -24,6 +28,7 @@ GROUNDED_ANSWER = PromptTemplate(
 
 
 def parse_structured_json(text: str, *, required: Sequence[str]) -> Mapping[str, Any]:
+    """Reject malformed model JSON or responses missing required fields."""
     try:
         value = json.loads(text)
     except json.JSONDecodeError as exc:
