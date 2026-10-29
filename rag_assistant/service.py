@@ -30,9 +30,9 @@ class UploadResult:
 class DocumentRegistry:
     """Track the active version and chunk count for each knowledge source.
 
-    Interview explanation: this is the catalogue shown under "Approved
-    sources" in the browser. A document is activated only after it produces
-    valid chunks, so an empty upload cannot replace a working source.
+    This is the catalogue shown under "Approved sources" in the browser. A
+    document is activated only after it produces valid chunks, so an empty
+    upload cannot replace a working source.
     """
 
     def __init__(self):

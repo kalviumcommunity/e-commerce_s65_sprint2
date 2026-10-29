@@ -21,9 +21,9 @@ from rag_assistant.tokens import TokenCounter
 def build_service() -> RAGService:
     """Connect every backend component and return the application service.
 
-    Interview explanation: this function is the composition root. It loads the
-    approved policies, makes them searchable, connects the Groq LLM to the RAG
-    pipeline, and exposes that pipeline to the web/API service.
+    This function is the composition root: it loads the approved policies,
+    makes them searchable, connects the Groq LLM to the RAG pipeline, and
+    exposes that pipeline to the web/API service.
     """
     # Runtime configuration validates the Groq key, model, timeout, context
     # size, and optional cost values before the server accepts requests.

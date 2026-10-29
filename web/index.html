@@ -26,8 +26,8 @@
     </div>
   </main>
   <script>
-    // Interview explanation: this UI calls only our backend. The Groq API key
-    // never reaches the browser; the server performs retrieval and generation.
+    // This UI calls only our backend. The Groq API key never reaches the
+    // browser; the server performs retrieval and generation.
     const $=s=>document.querySelector(s),conversation=$('#conversation'),question=$('#question'),send=$('#send'),file=$('#file'),version=$('#version'),docs=$('#documents'),upload=$('#upload'),uploadNote=$('#upload-note');let history=[];
     const escapeHtml=value=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     // Render text through escapeHtml so uploaded/model content cannot inject HTML.
