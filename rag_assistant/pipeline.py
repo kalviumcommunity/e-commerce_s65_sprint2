@@ -12,12 +12,27 @@ from .guardrails import EvidenceGate, FollowUpRewriter
 
 @dataclass
 class RAGPipeline:
+    """Orchestrate the complete online Retrieval-Augmented Generation flow.
+
+    Data flow for an interview walkthrough:
+    question/history -> standalone retrieval query -> local embedding ->
+    similarity ranking -> lexical reranking -> evidence gate -> token-bounded
+    context -> Groq JSON answer -> validated citations.
+    """
+
+    # Same embedding interface is used for both documents and user questions.
     embeddings: EmbeddingClient
+    # Corpus contains searchable passage vectors plus citation metadata.
     corpus: Sequence[EmbeddingRecord]
+    # Generator owns the grounded prompt and strict response validation.
     generator: GroundedGenerator
+    # Context assembler protects the model's maximum context window.
     context: ContextAssembler
+    # Reranker sharpens the initial broad similarity results.
     reranker: Reranker
+    # top_k limits latency and the amount of evidence considered downstream.
     top_k: int = 8
+    # Optional components make the pipeline testable in small isolated pieces.
     evidence_gate: EvidenceGate | None = None
     follow_up_rewriter: FollowUpRewriter | None = None
 

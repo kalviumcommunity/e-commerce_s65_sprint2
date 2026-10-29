@@ -19,6 +19,8 @@ logger = logging.getLogger("rag_assistant")
 
 @dataclass(frozen=True)
 class UploadResult:
+    """Small JSON-friendly summary returned after successful indexing."""
+
     document_id: str
     version: str
     chunks: int
@@ -26,32 +28,49 @@ class UploadResult:
 
 
 class DocumentRegistry:
+    """Track the active version and chunk count for each knowledge source.
+
+    Interview explanation: this is the catalogue shown under "Approved
+    sources" in the browser. A document is activated only after it produces
+    valid chunks, so an empty upload cannot replace a working source.
+    """
+
     def __init__(self):
         self._active: dict[str, tuple[str, list[Chunk]]] = {}
 
     def activate(self, document_id: str, version: str, chunks: list[Chunk]) -> UploadResult:
+        """Mark a fully processed document version as searchable."""
         if not chunks:
             raise ValueError("cannot activate an empty document")
         self._active[document_id] = (version, chunks)
         return UploadResult(document_id, version, len(chunks), "active")
 
     def list(self) -> list[UploadResult]:
+        """Return deterministic summaries for the browser source panel."""
         return [UploadResult(document_id, version, len(chunks), "active")
                 for document_id, (version, chunks) in sorted(self._active.items())]
 
 
 class ResponseCache:
+    """Short-lived in-memory cache for identical questions and chat history.
+
+    The cache improves response time and avoids paying for repeated Groq calls.
+    Its TTL keeps answers from remaining indefinitely after policies change.
+    """
+
     def __init__(self, ttl_seconds: float = 60):
         self.ttl_seconds = ttl_seconds
         self._items: dict[str, tuple[float, dict[str, Any]]] = {}
 
     def get(self, key: str) -> dict[str, Any] | None:
+        """Return an unexpired copy so callers cannot mutate cached state."""
         item = self._items.get(key)
         if not item or time.time() - item[0] > self.ttl_seconds:
             return None
         return dict(item[1])
 
     def put(self, key: str, value: dict[str, Any]) -> None:
+        """Store a defensive copy with the current insertion timestamp."""
         self._items[key] = (time.time(), dict(value))
 
 
@@ -65,6 +84,7 @@ class RAGService:
         self.cache = cache or ResponseCache()
 
     def query(self, question: str, history: list[dict[str, str]] | None = None) -> dict[str, Any]:
+        """Return one UI-ready answer with citations and operational metadata."""
         # Reuse recent identical answers to reduce Groq calls and response time.
         key = json.dumps({"q": question, "h": history or []}, sort_keys=True)
         cached = self.cache.get(key)
@@ -84,11 +104,14 @@ class RAGService:
         return response
 
     def upload(self, filename: str, content: str, *, document_id: str, version: str) -> dict[str, Any]:
+        """Process an upload and atomically replace that document in search."""
         # Uploaded text follows the same load -> chunk -> embed -> activate flow.
         document = DocumentLoader().load(filename, content, document_id=document_id, version=version)
         chunks = Chunker().chunk(document)
         records = self.pipeline.embeddings.embed([chunk.text for chunk in chunks],
                                                   [chunk.metadata for chunk in chunks])
+        # Replace only the matching document. All other approved sources remain
+        # searchable, which allows safe policy-by-policy updates.
         existing = list(self.pipeline.corpus)
         self.pipeline.corpus = [record for record in existing
                                 if record.metadata.get("document_id") != document_id] + records
@@ -97,8 +120,11 @@ class RAGService:
 
 
 def make_handler(service: RAGService) -> type[BaseHTTPRequestHandler]:
+    """Bind HTTP routes to one configured service without global state."""
+
     class Handler(BaseHTTPRequestHandler):
         def _write(self, status: int, value: dict[str, Any]) -> None:
+            """Serialize every API response consistently as UTF-8 JSON."""
             body = json.dumps(value).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
@@ -139,8 +165,11 @@ def make_handler(service: RAGService) -> type[BaseHTTPRequestHandler]:
                 else:
                     self._write(404, {"error": "not found"})
             except LLMError as exc:
+                # Provider failures become a safe gateway error without secrets
+                # or an internal stack trace reaching the browser.
                 self._write(502, {"error": str(exc)})
             except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                # Invalid user payloads are client errors, not server crashes.
                 self._write(400, {"error": str(exc)})
 
         def log_message(self, format: str, *args: Any) -> None:
@@ -150,5 +179,6 @@ def make_handler(service: RAGService) -> type[BaseHTTPRequestHandler]:
 
 
 def serve(service: RAGService, host: str = "127.0.0.1", port: int = 8000) -> None:
+    """Start a threaded local server so independent requests do not block."""
     ThreadingHTTPServer((host, port), make_handler(service)).serve_forever()
 

@@ -25,10 +25,14 @@ def build_service() -> RAGService:
     approved policies, makes them searchable, connects the Groq LLM to the RAG
     pipeline, and exposes that pipeline to the web/API service.
     """
+    # Runtime configuration validates the Groq key, model, timeout, context
+    # size, and optional cost values before the server accepts requests.
     settings = Settings.from_env()
     llm = LLMClient(settings)
     sample_dir = Path(__file__).parent / "data" / "sample"
     loader = DocumentLoader()
+    # One hundred words keeps passages focused; overlap preserves facts that
+    # cross a chunk boundary.
     chunker = Chunker(max_words=100, overlap_words=15)
     documents = []
     all_chunks = []
@@ -51,10 +55,16 @@ def build_service() -> RAGService:
     pipeline = RAGPipeline(
         embeddings=embedder,
         corpus=corpus,
+        # GroundedGenerator calls Groq only after retrieval has supplied evidence.
         generator=GroundedGenerator(llm),
+        # Reserve model-output space and fit the strongest passages in the rest.
         context=ContextAssembler(TokenCounter(), max(1000, settings.context_window - 1024)),
+        # Reranking improves precision after the broader vector search.
         reranker=Reranker(),
+        # A low but explicit threshold blocks clearly unrelated questions.
         evidence_gate=EvidenceGate(minimum_score=0.15),
+        # Follow-up rewriting turns questions such as "What about opened ones?"
+        # into a standalone search query using recent conversation history.
         follow_up_rewriter=FollowUpRewriter(llm),
     )
 
@@ -68,6 +78,7 @@ def build_service() -> RAGService:
 if __name__ == "__main__":
     # Secrets stay outside the codebase and are read from the local environment.
     load_dotenv()
+    # PORT supports local execution and hosting platforms without code changes.
     port = int(os.getenv("PORT", "8000"))
     print(f"Groq policy assistant running at http://127.0.0.1:{port}")
     serve(build_service(), port=port)
